@@ -9,7 +9,7 @@ $ git clone https://github.com/DownrightNifty/bdfr2text.git
 $ cd bdfr2text
 $ python3 bdfr2text.py INPUT_DIR OUTPUT_DIR
 ```
-Note: If converting .yaml files, PyYAML is necessary (but this should already have been installed by BDFR). Otherwise, no dependencies.
+Note: Currently, only JSON or YAML output from BDFR supported. While BDFR supports XML output, it is not supported. If converting YAML files, PyYAML is necessary (but this should already have been installed by BDFR). Otherwise, no dependencies.
 
 There are a few options at the top of `bdfr2text.py` you can change:
 ```py
