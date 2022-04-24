@@ -1,7 +1,3 @@
-# usage: python3 bdfr2text.py INPUT_DIR OUTPUT_DIR
-# INPUT_DIR is the output dir of bdfr
-# OUTPUT_DIR is emptied before every run
-
 import argparse
 import json
 import time
@@ -14,6 +10,10 @@ try:
     YAML_INSTALLED = True
 except ImportError:
     pass
+
+OPEN_DELIM = ('[', '&lsqb;')
+CLOSE_DELIM = (']', '&rsqb;')
+SEPARATOR = ('---', '&#x2504;')
 
 # I didn't want to import shutil just for rmtree(), so I just re-wrote it :)
 # raises FileNotFoundError
@@ -61,8 +61,8 @@ def pretty_time_diff(start, end):
     YEAR = DAY * 365
 
     # start at highest and work down
-    units_in_secs = [YEAR, MONTH, DAY, HOUR, MINUTE, SECOND]
-    unit_names = ['yr', 'mo', 'day', 'hr', 'min', 'sec']
+    units_in_secs = (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
+    unit_names = ('yr', 'mo', 'day', 'hr', 'min', 'sec')
     i = 0
     while i < len(units_in_secs):
         diff_in_unit = int(diff_in_secs / units_in_secs[i])
@@ -76,7 +76,7 @@ def pretty_time_diff(start, end):
 # p is a post or comment
 # generates string of metadata of the post/comment in the format:
 # "[ pts | author | date | # comments (if post) | id ]"
-def metadata_str(p, add_urls, add_timestamps):
+def metadata_str(p, add_urls, add_timestamps, parsable):
     # True if post, False if comment
     is_post = 'title' in p
     score = p['score']
@@ -91,36 +91,62 @@ def metadata_str(p, add_urls, add_timestamps):
         date = pretty_time_diff(timestamp, now)
     if add_urls:
         if is_post:
-            r_id = f'https://reddit.com/comments/{p["id"]}'
+            r_id = f'http://reddit.com/comments/{p["id"]}'
         else:
-            r_id = f'https://reddit.com/comments/{p["submission"]}//{p["id"]}'
+            r_id = f'http://reddit.com/comments/{p["submission"]}//{p["id"]}'
     else:
         r_id = p['id']
     if is_post:
-        metadata = (f'[ {score} | {author} | {date} | {p["num_comments"]} '
-                    f'comments | {r_id} ]')
+        delims = ''
+        if parsable:
+            delims += ' | '
+            for i, d in enumerate((OPEN_DELIM, CLOSE_DELIM, SEPARATOR)):
+                delims += d[1]
+                if i != 2:
+                    delims += ' '
+        metadata = (f'{OPEN_DELIM[0]} {score} | {author} | {date} | '
+                    f'{p["num_comments"]} comments | {r_id}{delims} '
+                    f'{CLOSE_DELIM[0]}')
     else:
-        metadata = f'[ {score} | {author} | {date} | {r_id} ]'
+        metadata = (f'{OPEN_DELIM[0]} {score} | {author} | {date} | {r_id} '
+                    f'{CLOSE_DELIM[0]}')
     return metadata
 
-def post_to_text(p, indent, add_urls, add_timestamps):
+# p is a post or comment
+def generate_body(p, parsable):
+    is_post = 'title' in p
+    if is_post:
+        if p['selftext'] != '':
+            body = p['selftext'].strip()
+        else:
+            body = p['url']
+    else:
+        body = p['body'].strip()
+
+    if parsable:
+        for d in (OPEN_DELIM, CLOSE_DELIM, SEPARATOR):
+            if d[1] in body:
+                # info will be lost
+                body = body.replace(d[1], '')
+            body = body.replace(d[0], d[1])
+    
+    return body
+
+def post_to_text(p, indent, add_urls, add_timestamps, parsable):
     out = StringIO()
 
-    if p['selftext'] != '':
-        body = p['selftext'].strip()
-    else:
-        body = p['url']
-
-    metadata = metadata_str(p, add_urls, add_timestamps)
-    p_str = f'{metadata}' + '\n\n' + p['title'] + '\n' + body + '\n---\n\n'
+    body = generate_body(p, parsable)
+    metadata = metadata_str(p, add_urls, add_timestamps, parsable)
+    p_str = (f'{metadata}' + '\n\n' + p['title'] + '\n' + body + '\n'
+             f'{SEPARATOR[0]}\n\n')
     out.write(p_str)
 
     def comments_to_text(comments, tree_depth):
         padding = ' ' * (indent * tree_depth)
         for c in comments:
-            metadata = metadata_str(c, add_urls, add_timestamps)
-            body = c['body'].strip()
-            c_str = padding + metadata + '\n\n' + body + '\n---'
+            metadata = metadata_str(c, add_urls, add_timestamps, parsable)
+            body = generate_body(c, parsable)
+            c_str = padding + metadata + '\n\n' + body + f'\n{SEPARATOR[0]}'
             c_str = c_str.replace('\n', '\n' + padding)
             c_str += '\n\n'
 
@@ -128,7 +154,7 @@ def post_to_text(p, indent, add_urls, add_timestamps):
 
             if len(c['replies']) > 0:
                 comments_to_text(c['replies'], tree_depth + 1)
-    
+
     comments_to_text(p['comments'], 0)
     out_str = out.getvalue()
     out.close()
@@ -141,7 +167,7 @@ def main():
                    help='input dir (output dir of BDFR)')
     p.add_argument('-o', metavar='OUT_DIR',
                    help='output dir (emptied before each run, default: IN_DIR +'
-                   '"_out")', dest='out_dir')
+                   ' "_out")', dest='out_dir')
     p.add_argument('--indent', help='indent level (default: 6)', type=int,
                    default=6)
     p.add_argument('--parsable-out', '-p',
@@ -176,13 +202,12 @@ def main():
 
     for p in relative_paths:
         with open(in_dir / p, 'r') as in_f:
-            print(f'converting {in_dir / p}...')
             if p.suffix == '.json':
                 post = json.load(in_f)
             else: # yaml
                 post = yaml.safe_load(in_f)
         out_text = post_to_text(post, args.indent, not args.shorten_urls,
-                                args.timestamps)
+                                args.timestamps, args.parsable_out)
         out_fp = out_dir / p.with_name(p.name + '.txt')
         with open(out_fp, 'w') as of:
             of.write(out_text)
