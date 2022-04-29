@@ -11,7 +11,7 @@ $ git clone https://github.com/DownrightNifty/bdfr2text.git
 $ cd bdfr2text
 $ python3 bdfr2text.py INPUT_DIR OUTPUT_DIR
 ```
-See `python3 bdfr2text.py -h`.
+`INPUT_DIR` is the output dir of `bdfr archive`. See `python3 bdfr2text.py -h`.
 
 Only JSON or YAML (not XML) output from BDFR is supported. If converting YAML files, PyYAML is necessary (but this should already have been installed by BDFR). Otherwise, no dependencies.
 
