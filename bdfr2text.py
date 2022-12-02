@@ -50,28 +50,33 @@ def cp_dir_structure(src, dest):
     _cp_dir_structure(src, dest, 1)
 
 # generates pretty time diff string from two UTC timestamps
+# raises ValueError
 def pretty_time_diff(start, end):
-    diff_in_secs = end - start
+    # ensure that start >= 1 and end >= start
+    if (start < 1) or (end < start):
+        raise ValueError
+    if start == end:
+        return 'now'
+
+    diff_secs = end - start
 
     SECOND = 1
-    MINUTE = 60
+    MINUTE = SECOND * 60
     HOUR = MINUTE * 60
     DAY = HOUR * 24
     MONTH = DAY * 30
-    YEAR = DAY * 365
+    YEAR = MONTH * 12
 
     # start at highest and work down
-    units_in_secs = (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
+    units = (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
     unit_names = ('yr', 'mo', 'day', 'hr', 'min', 'sec')
     i = 0
-    while i < len(units_in_secs):
-        diff_in_unit = int(diff_in_secs / units_in_secs[i])
-        if diff_in_unit == 1:
-            return f'{diff_in_unit} {unit_names[i]}'
-        if diff_in_unit > 1:
-            return f'{diff_in_unit} {unit_names[i]}s'
-        i = i + 1
-    return 'now'
+    while True:
+        if diff_secs >= units[i]:
+            diff_converted = int(diff_secs / units[i])
+            plural = 's' if diff_converted == 1 else ''
+            return f'{diff_converted} {unit_names[i]}{plural}'
+        i += 1
 
 # p is a post or comment
 # generates string of metadata of the post/comment in the format:
