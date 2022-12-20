@@ -87,9 +87,9 @@ def metadata_str(p, add_urls, add_timestamps, parsable):
     score = p['score']
     author = p['author']
     timestamp = int(p['created_utc'])
-    if add_timestamps:
+    if is_post or add_timestamps:
         # use timestamp
-        date = timestamp
+        date = time.strftime('%m/%d/%y %H:%M UTC', time.gmtime(timestamp))
     else:
         # use age
         now = time.time()
