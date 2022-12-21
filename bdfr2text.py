@@ -52,10 +52,11 @@ def cp_dir_structure(src, dest):
 # generates pretty time diff string from two UTC timestamps
 # raises ValueError
 def pretty_time_diff(start, end):
-    # ensure that start >= 1 and end >= start
-    if (start < 1) or (end < start):
+    # ensure start >= 1
+    if start < 1:
         raise ValueError
-    if start == end:
+    # ensure start < end
+    if start >= end:
         return 'now'
 
     diff_secs = end - start
